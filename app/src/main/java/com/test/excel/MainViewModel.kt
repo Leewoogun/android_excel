@@ -1,5 +1,6 @@
 package com.test.excel
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.os.Build
@@ -7,6 +8,8 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.util.Log
 import android.widget.Toast
+import androidx.compose.runtime.Immutable
+import androidx.compose.runtime.Stable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.test.excel.model.SampleData
@@ -21,6 +24,7 @@ import org.apache.poi.ss.usermodel.Sheet
 import org.apache.poi.ss.usermodel.Workbook
 import org.apache.poi.xssf.usermodel.XSSFWorkbook
 import java.io.File
+import java.io.InputStream
 import javax.inject.Inject
 
 @HiltViewModel
@@ -31,6 +35,9 @@ class MainViewModel @Inject constructor(
 
     private val _excel = MutableStateFlow<Workbook?>(null)
     val excel = _excel.asStateFlow()
+
+    private val _mainDialogEffect = MutableStateFlow<MainDialogEffect>(MainDialogEffect.Idle)
+    val mainDialogEffect = _mainDialogEffect.asStateFlow()
 
     /**
      * 안드로이드 29이상 부터는 Scoped Storage 정책을 따름
@@ -82,7 +89,73 @@ class MainViewModel @Inject constructor(
     }
 
     fun readExcel() {
+        viewModelScope.launch {
+            val fileName = "countries.xlsx"
+            val dataList = mutableListOf<Pair<String, String>>() // 읽어온 데이터를 저장할 리스트
 
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                val contentUri = MediaStore.Files.getContentUri("external")
+
+                val projection = arrayOf(
+                    MediaStore.Files.FileColumns._ID,
+                    MediaStore.Files.FileColumns.DISPLAY_NAME
+                )
+
+                val selection = "${MediaStore.Files.FileColumns.DISPLAY_NAME} = ?"
+                val selectionArgs = arrayOf(fileName)
+
+                runCatching {
+                    context.contentResolver.query(contentUri, projection, selection, selectionArgs, null)?.use { cursor ->
+                        if (cursor.moveToFirst()) {
+                            val idColumn = cursor.getColumnIndexOrThrow(MediaStore.Files.FileColumns._ID)
+                            val fileId = cursor.getLong(idColumn)
+                            val uri = ContentUris.withAppendedId(contentUri, fileId)
+
+                            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                                dataList.addAll(parseExcel(inputStream))
+                            }
+                        }
+                    }
+                }.onFailure {
+                    Toast.makeText(context, "파일 읽기 실패", Toast.LENGTH_SHORT).show()
+                    Log.e("MainViewModel", "error: ${it.message}")
+                }
+
+            } else {
+                runCatching {
+                    val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), fileName)
+                    if (file.exists()) {
+                        file.inputStream().use { inputStream ->
+                            dataList.addAll(parseExcel(inputStream))
+                        }
+                    }
+                }.onFailure {
+                    Toast.makeText(context, "파일 읽기 실패", Toast.LENGTH_SHORT).show()
+                    Log.e("MainViewModel", "error: ${it.message}")
+                }
+            }
+
+            if (dataList.isNotEmpty()) {
+                _mainDialogEffect.update { MainDialogEffect.CountryDialog(dataList.toList()) }
+            }
+        }
+    }
+
+    private fun parseExcel(inputStream: InputStream): List<Pair<String, String>> {
+        val list = mutableListOf<Pair<String, String>>()
+        val workbook: Workbook = XSSFWorkbook(inputStream)
+        val sheet: Sheet = workbook.getSheetAt(0) // 첫 번째 시트 사용
+
+        for (row in sheet) {
+            if (row.rowNum == 0) continue // 첫 번째 행(헤더)은 건너뜀
+
+            val country = row.getCell(0)?.stringCellValue ?: ""
+            val capital = row.getCell(1)?.stringCellValue ?: ""
+            list.add(country to capital)
+        }
+
+        workbook.close()
+        return list
     }
 
     private fun createExcel() {
@@ -103,4 +176,20 @@ class MainViewModel @Inject constructor(
 
         _excel.update { workbook }
     }
+
+    fun dismissDialog() {
+        _mainDialogEffect.update { MainDialogEffect.Idle }
+    }
+}
+
+@Stable
+sealed interface MainDialogEffect {
+
+    @Immutable
+    data object Idle: MainDialogEffect
+
+    @Immutable
+    data class CountryDialog(
+        val list: List<Pair<String, String>>
+    ): MainDialogEffect
 }
