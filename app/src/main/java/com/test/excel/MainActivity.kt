@@ -6,11 +6,12 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.test.excel.model.SampleData
 import com.test.excel.ui.theme.AndroidExcelTheme
-import com.test.excel.ui.theme.MainScreen
 import dagger.hilt.android.AndroidEntryPoint
 
 @AndroidEntryPoint
@@ -21,6 +22,8 @@ class MainActivity : ComponentActivity() {
         setContent {
             val viewModel: MainViewModel by viewModels()
             val dialogEffect by viewModel.mainDialogEffect.collectAsStateWithLifecycle()
+            val context = LocalContext.current
+            val intentUtil = IntentUtil(context)
 
             AndroidExcelTheme {
                 MainScreen(
@@ -34,6 +37,16 @@ class MainActivity : ComponentActivity() {
                     effect = dialogEffect,
                     onDismissRequest = viewModel::dismissDialog
                 )
+
+                LaunchedEffect(Unit) {
+                    viewModel.mainUiEffect.collect {
+                        when (it) {
+                            is MainUiEffect.ShareExcel -> {
+                                intentUtil.shareExcel(it.file)
+                            }
+                        }
+                    }
+                }
             }
         }
     }

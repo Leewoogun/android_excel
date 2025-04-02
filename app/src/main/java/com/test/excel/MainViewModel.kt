@@ -3,6 +3,8 @@ package com.test.excel
 import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
+import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Environment
 import android.provider.MediaStore
@@ -10,12 +12,15 @@ import android.util.Log
 import android.widget.Toast
 import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.Stable
+import androidx.core.content.FileProvider
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.test.excel.model.SampleData
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -38,6 +43,9 @@ class MainViewModel @Inject constructor(
 
     private val _mainDialogEffect = MutableStateFlow<MainDialogEffect>(MainDialogEffect.Idle)
     val mainDialogEffect = _mainDialogEffect.asStateFlow()
+
+    private val _mainUiEffect = MutableSharedFlow<MainUiEffect>()
+    val mainUiEffect = _mainUiEffect.asSharedFlow()
 
     /**
      * 안드로이드 29이상 부터는 Scoped Storage 정책을 따름
@@ -85,7 +93,16 @@ class MainViewModel @Inject constructor(
     }
 
     fun shareExcel() {
+        viewModelScope.launch {
+            val file = File(Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS), "countries.xlsx")
 
+            if (!file.exists()) {
+                Toast.makeText(context, "파일이 존재하지 않습니다.", Toast.LENGTH_SHORT).show()
+                return@launch
+            }
+
+            _mainUiEffect.emit(MainUiEffect.ShareExcel(file))
+        }
     }
 
     fun readExcel() {
@@ -192,4 +209,12 @@ sealed interface MainDialogEffect {
     data class CountryDialog(
         val list: List<Pair<String, String>>
     ): MainDialogEffect
+}
+
+@Stable
+sealed interface MainUiEffect {
+    @Immutable
+    data class ShareExcel(
+        val file: File
+    ): MainUiEffect
 }
