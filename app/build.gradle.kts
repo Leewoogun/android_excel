@@ -60,7 +60,7 @@ dependencies {
     debugImplementation(libs.androidx.ui.test.manifest)
 
     implementation(libs.poi)
-    implementation(libs.poi.xml)
+    implementation(libs.poi.ooxml)
 
     implementation(libs.hilt.android)
     ksp(libs.hilt.compiler)

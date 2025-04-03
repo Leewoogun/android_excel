@@ -12,7 +12,7 @@ composeBom = "2025.03.01"
 hilt = "2.51.1"
 # excel lib
 poi = "5.4.0"
-poixml = "5.4.0"
+poiooxml = "5.4.0"
 
 ksp = "2.0.21-1.0.27"
 
@@ -42,7 +42,7 @@ hilt-android-compiler = { group = "com.google.dagger", name = "hilt-android-comp
 
 # poi (excel)
 poi = { module = "org.apache.poi:poi", version.ref = "poi" }
-poi-xml = { module = "org.apache.poi:poi-ooxml", version.ref = "poixml" }
+poi-ooxml = { module = "org.apache.poi:poi-ooxml", version.ref = "poiooxml" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
